@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            background-color: #121212;
+            color: #FFFFFF;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+
+        #container {
+            margin: 0 auto;
+            max-width: 800px;
+            padding: 20px;
+        }
+
+        input[type="file"] {
+            margin: 20px 0;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #FFFFFF;
+            padding: 10px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #333333;
+        }
+
+        #result {
+            margin-top: 30px;
+        }
+
+        .language-select {
+            margin-top: 20px;
+        }
+
+        select {
+            background-color: #333333;
+            color: #FFFFFF;
+            border: 1px solid #FFFFFF;
+            padding: 5px;
+        }
+
+        button {
+            background-color: #333333;
+            color: #FFFFFF;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        button:hover {
+            background-color: #555555;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+    <script>
+        const languages = {
+            en: {
+                upload: "Upload PDF files (Max 100)",
+                fileName: "File Name",
+                fileSize: "File Size",
+                pageCount: "Page Count",
+                metadata: "Metadata",
+                download: "Download Results",
+                analyze: "Analyze PDFs",
+                results: "Results",
+            },
+            ar: {
+                upload: "تحميل ملفات PDF (حد أقصى 100)",
+                fileName: "اسم الملف",
+                fileSize: "حجم الملف",
+                pageCount: "عدد الصفحات",
+                metadata: "البيانات الوصفية",
+                download: "تنزيل النتائج",
+                analyze: "تحليل الملفات",
+                results: "النتائج",
+            },
+            ku: {
+                upload: "باركردنی فایلەکان PDF (زۆرترین 100)",
+                fileName: "ناوی فایل",
+                fileSize: "قەبارەی فایل",
+                pageCount: "ژمارەی لاپەڕەکان",
+                metadata: "زانیاریەکان",
+                download: "داگرتنی ئەنجامەکان",
+                analyze: "پەیوان کردن بەرەوپێش فایلەکان",
+                results: "ئەنجامەکان",
+            }
+        };
+
+        let currentLanguage = 'en';
+
+        function setLanguage(lang) {
+            currentLanguage = lang;
+            document.getElementById('upload-label').innerText = languages[lang].upload;
+            document.getElementById('file-name').innerText = languages[lang].fileName;
+            document.getElementById('file-size').innerText = languages[lang].fileSize;
+            document.getElementById('page-count').innerText = languages[lang].pageCount;
+            document.getElementById('metadata').innerText = languages[lang].metadata;
+            document.getElementById('download-results').innerText = languages[lang].download;
+            document.getElementById('analyze-btn').innerText = languages[lang].analyze;
+            document.getElementById('results-title').innerText = languages[lang].results;
+        }
+
+        async function analyzePDFs() {
+            const input = document.getElementById('file-input');
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `<h3 id="results-title">${languages[currentLanguage].results}:</h3>`;
+            const files = Array.from(input.files);
+            const results = [];
+
+            for (let file of files) {
+                const fileData = await analyzeFile(file);
+                results.push(fileData);
+            }
+
+            results.sort((a, b) => a.pages - b.pages);
+
+            const table = document.createElement('table');
+            table.innerHTML = `
+                <tr>
+                    <th id="file-name">${languages[currentLanguage].fileName}</th>
+                    <th id="file-size">${languages[currentLanguage].fileSize}</th>
+                    <th id="page-count">${languages[currentLanguage].pageCount}</th>
+                    <th id="metadata">${languages[currentLanguage].metadata}</th>
+                </tr>
+            `;
+
+            results.forEach(file => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${file.name}</td>
+                    <td>${(file.size / (1024 * 1024)).toFixed(2)} MB</td>
+                    <td>${file.pages}</td>
+                    <td>${file.metadata}</td>
+                `;
+                table.appendChild(row);
+            });
+
+            resultDiv.appendChild(table);
+
+            // Enable download button
+            document.getElementById('download-results').style.display = 'block';
+        }
+
+        async function analyzeFile(file) {
+            const fileData = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: fileData }).promise;
+            const metadata = await pdf.getMetadata();
+            const pageCount = pdf.numPages;
+            const fileName = file.name;
+            const fileSize = file.size;
+            const fileMetadata = metadata.info.Title || metadata.info.Subject || "N/A";
+            
+            return {
+                name: fileName,
+                size: fileSize,
+                pages: pageCount,
+                metadata: fileMetadata
+            };
+        }
+
+        function downloadResults() {
+            const table = document.querySelector('table');
+            const rows = Array.from(table.rows);
+            const csvContent = rows.map(row => 
+                Array.from(row.cells).map(cell => cell.innerText).join(',')
+            ).join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'results.csv';
+            document.body.appendChild(a);
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</head>
+<body>
+    <div id="container">
+        <label id="upload-label" for="file-input">Upload PDF files (Max 100)</label><br>
+        <input type="file" id="file-input" multiple accept=".pdf"><br>
+        <button id="analyze-btn" onclick="analyzePDFs()">Analyze PDFs</button><br>
+        <div class="language-select">
+            <select onchange="setLanguage(this.value)">
+                <option value="en">English</option>
+                <option value="ar">العربية</option>
+                <option value="ku">كوردی</option>
+            </select>
+        </div>
+        <button id="download-results" onclick="downloadResults()" style="display:none;">Download Results</button>
+        <div id="result"></div>
+    </div>
+</body>
+</html>
