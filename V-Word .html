@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            background-color: black;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            text-align: center;
+        }
+        input[type="file"] {
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        .file-list {
+            margin-top: 10px;
+            text-align: left;
+            font-size: 14px;
+        }
+        .loading {
+            margin-top: 10px;
+            color: yellow;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <input type="file" id="txtFiles" accept=".txt" multiple>
+        <button onclick="convertToWord()">تحويل إلى Word</button>
+        <div class="file-list" id="fileList"></div>
+        <p class="loading" id="loading">جاري التحويل...</p>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.6.0/jszip.min.js"></script>
+    <script>
+        const fileInput = document.getElementById('txtFiles');
+        const fileListDisplay = document.getElementById('fileList');
+        const loadingMessage = document.getElementById('loading');
+
+        fileInput.addEventListener('change', () => {
+            displaySelectedFiles();
+        });
+
+        function displaySelectedFiles() {
+            fileListDisplay.innerHTML = '';
+            const files = fileInput.files;
+            if (files.length > 128) {
+                alert("الحد الأقصى لتحويل الملفات هو 128 ملف.");
+                fileInput.value = '';
+                return;
+            }
+
+            for (let i = 0; i < files.length; i++) {
+                fileListDisplay.innerHTML += `<li>${files[i].name}</li>`;
+            }
+        }
+
+        function convertToWord() {
+            const files = fileInput.files;
+            if (files.length === 0) {
+                alert("الرجاء اختيار ملفات TXT أولاً!");
+                return;
+            }
+            if (files.length > 128) {
+                alert("الحد الأقصى لتحويل الملفات هو 128 ملف.");
+                return;
+            }
+
+            loadingMessage.style.display = 'block';
+
+            const zip = new JSZip();
+
+            if (files.length === 1) {
+                // إذا كان هناك ملف واحد فقط
+                convertSingleFileToWord(files[0]);
+            } else {
+                // إذا كان هناك أكثر من ملف
+                for (let i = 0; i < files.length; i++) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const content = e.target.result;
+                        const fileName = files[i].name.replace('.txt', '.doc');
+                        zip.file(fileName, '\ufeff' + content);
+                        
+                        if (i === files.length - 1) {
+                            zip.generateAsync({ type: "blob" }).then(function(content) {
+                                const zipLink = document.createElement('a');
+                                zipLink.href = URL.createObjectURL(content);
+                                zipLink.download = "converted-files.zip"; // حفظ الملفات المحولة كملف مضغوط واحد
+                                zipLink.click();
+                                URL.revokeObjectURL(zipLink.href);
+                                loadingMessage.style.display = 'none';
+                            });
+                        }
+                    };
+                    reader.readAsText(files[i], 'UTF-8');
+                }
+            }
+        }
+
+        function convertSingleFileToWord(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                const blob = new Blob(['\ufeff' + content], { type: "application/msword" });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = file.name.replace('.txt', '.doc');
+                link.click();
+                URL.revokeObjectURL(link.href);
+                loadingMessage.style.display = 'none';
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+    </script>
+</body>
+</html>
